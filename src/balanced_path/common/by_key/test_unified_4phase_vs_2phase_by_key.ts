@@ -943,22 +943,27 @@ async function runSingleOpByKeyTest(
             continue;
         }
 
-        const aPath = `./data/A_${size}${range}.bin`;
-        const bPath = `./data/B_${size}${range}.bin`;
+        const aKeysPath = `./data/A_keys_${size}${range}.bin`;
+        const aValuesPath = `./data/A_values_${size}${range}.bin`;
+        const bKeysPath = `./data/B_keys_${size}${range}.bin`;
 
         try {
-            const aKeys = await utils.loadUint32ArrayFromBin(aPath);
-            const bKeys = await utils.loadUint32ArrayFromBin(bPath);
+            const aKeys = await utils.loadUint32ArrayFromBin(aKeysPath);
+            const aValues = await utils.loadUint32ArrayFromBin(aValuesPath);
+            const bKeys = await utils.loadUint32ArrayFromBin(bKeysPath);
 
-            // Generate synthetic values: a_values[i] = i, b_values[i] = i + a_len
-            const aValues = generateValues(aKeys, 0);
-            // For GPU: OP_MODE 0,1 (intersection/difference) never access b_values,
-            // so use a tiny dummy to avoid OOM on large datasets (saves 512MB at 128M).
-            // Full b_values only needed for OP_MODE 2,3 (union/sym_diff).
-            const bValuesGPU = (opMode <= 1) ? new Uint32Array(1) : generateValues(bKeys, aKeys.length);
+            // OP_MODE 0,1 (intersection/difference) never read b_values on GPU,
+            // so use a tiny dummy to save memory on large datasets.
+            // OP_MODE 2,3 (union/sym_diff) need real b_values.
+            let bValues: Uint32Array;
+            if (opMode >= 2) {
+                bValues = await utils.loadUint32ArrayFromBin(`./data/B_values_${size}${range}.bin`);
+            } else {
+                bValues = new Uint32Array(1);
+            }
 
-            const fourResult = await fourPhaseTester.run(aKeys, aValues, bKeys, bValuesGPU, NUM_ITERATIONS, NUM_WARMUP);
-            const twoResult = await twoPhaseTester.run(aKeys, aValues, bKeys, bValuesGPU, NUM_ITERATIONS, NUM_WARMUP);
+            const fourResult = await fourPhaseTester.run(aKeys, aValues, bKeys, bValues, NUM_ITERATIONS, NUM_WARMUP);
+            const twoResult = await twoPhaseTester.run(aKeys, aValues, bKeys, bValues, NUM_ITERATIONS, NUM_WARMUP);
 
             const countMatch = fourResult.totalCount === twoResult.totalCount;
 
@@ -974,10 +979,11 @@ async function runSingleOpByKeyTest(
                     // intersection: B is keys-only
                     cpuResult = cpuFn(aInterleaved, bKeys);
                 } else {
-                    // difference/union/sym_diff: both interleaved
-                    // Generate proper b_values for CPU validation (small datasets only)
-                    const bValuesCPU = (opMode <= 1) ? new Uint32Array(1) : bValuesGPU;
-                    const bInterleaved = interleaveKeyValue(bKeys, bValuesCPU);
+                    // difference/union/sym_diff: both A and B are interleaved [k,v,k,v,...]
+                    // For difference (opMode 1), load b_values just for CPU validation
+                    const bVals = (opMode >= 2) ? bValues
+                        : await utils.loadUint32ArrayFromBin(`./data/B_values_${size}${range}.bin`);
+                    const bInterleaved = interleaveKeyValue(bKeys, bVals);
                     cpuResult = cpuFn(aInterleaved, bInterleaved);
                 }
             }
