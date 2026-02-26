@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+build/
+public/data/
+package-lock.json
+*.tar.gz
+.vscode/
+tmpclaude-*/
