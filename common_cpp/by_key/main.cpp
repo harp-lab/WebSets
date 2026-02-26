@@ -917,7 +917,7 @@ int main() {
     const char* dataDir = nullptr;
     for (auto d : dataDirs) {
         char probe[256];
-        snprintf(probe, sizeof(probe), "%s/A_1e2.bin", d);
+        snprintf(probe, sizeof(probe), "%s/A_keys_1e2.bin", d);
         std::ifstream test(probe);
         if (test.good()) { dataDir = d; break; }
     }
@@ -938,19 +938,19 @@ int main() {
         printf("Lookback by-key pipeline created (OP_MODE=%u).\n", opMode);
 
         if (dataDir) {
-            char pathA[256], pathB[256];
-            snprintf(pathA, sizeof(pathA), "%s/A_1e2.bin", dataDir);
-            snprintf(pathB, sizeof(pathB), "%s/B_1e2.bin", dataDir);
+            char pathAK[256], pathAV[256], pathBK[256], pathBV[256];
+            snprintf(pathAK, sizeof(pathAK), "%s/A_keys_1e2.bin", dataDir);
+            snprintf(pathAV, sizeof(pathAV), "%s/A_values_1e2.bin", dataDir);
+            snprintf(pathBK, sizeof(pathBK), "%s/B_keys_1e2.bin", dataDir);
+            snprintf(pathBV, sizeof(pathBV), "%s/B_values_1e2.bin", dataDir);
 
-            std::ifstream fA(pathA), fB(pathB);
-            if (fA.good() && fB.good()) {
-                fA.close(); fB.close();
-                auto A = loadBinaryData(pathA);
-                auto B = loadBinaryData(pathB);
-
-                // Generate synthetic values
-                auto aVals = generateValues(A.size(), 0);
-                auto bVals = generateValues(B.size(), 1000000000u);
+            std::ifstream fAK(pathAK), fAV(pathAV), fBK(pathBK), fBV(pathBV);
+            if (fAK.good() && fAV.good() && fBK.good() && fBV.good()) {
+                fAK.close(); fAV.close(); fBK.close(); fBV.close();
+                auto A     = loadBinaryData(pathAK);
+                auto aVals = loadBinaryData(pathAV);
+                auto B     = loadBinaryData(pathBK);
+                auto bVals = loadBinaryData(pathBV);
 
                 printf("\nValidation (%zuM + %zuM):\n", A.size()/1000000, B.size()/1000000);
                 bool ok = runValidation(g_device, queue,
@@ -964,7 +964,7 @@ int main() {
                     continue;
                 }
             } else {
-                printf("\nValidation skipped: 1e2 data files not found.\n");
+                printf("\nValidation skipped: by-key 1e2 data files not found.\n");
             }
         }
 
@@ -983,21 +983,21 @@ int main() {
 
             for (auto sz : bmSizes) {
                 for (auto rng : bmRanges) {
-                    char pathA[256], pathB[256], dsName[64];
-                    snprintf(pathA, sizeof(pathA), "%s/A_%s%s.bin", dataDir, sz, rng);
-                    snprintf(pathB, sizeof(pathB), "%s/B_%s%s.bin", dataDir, sz, rng);
+                    char pathAK[256], pathAV[256], pathBK[256], pathBV[256], dsName[64];
+                    snprintf(pathAK, sizeof(pathAK), "%s/A_keys_%s%s.bin", dataDir, sz, rng);
+                    snprintf(pathAV, sizeof(pathAV), "%s/A_values_%s%s.bin", dataDir, sz, rng);
+                    snprintf(pathBK, sizeof(pathBK), "%s/B_keys_%s%s.bin", dataDir, sz, rng);
+                    snprintf(pathBV, sizeof(pathBV), "%s/B_values_%s%s.bin", dataDir, sz, rng);
                     snprintf(dsName, sizeof(dsName), "%s%s", sz, rng);
 
-                    std::ifstream fA(pathA), fB(pathB);
-                    if (!fA.good() || !fB.good()) continue;
-                    fA.close(); fB.close();
+                    std::ifstream fAK(pathAK), fAV(pathAV), fBK(pathBK), fBV(pathBV);
+                    if (!fAK.good() || !fAV.good() || !fBK.good() || !fBV.good()) continue;
+                    fAK.close(); fAV.close(); fBK.close(); fBV.close();
 
-                    auto A = loadBinaryData(pathA);
-                    auto B = loadBinaryData(pathB);
-
-                    // Generate synthetic values
-                    auto aVals = generateValues(A.size(), 0);
-                    auto bVals = generateValues(B.size(), 1000000000u);
+                    auto A     = loadBinaryData(pathAK);
+                    auto aVals = loadBinaryData(pathAV);
+                    auto B     = loadBinaryData(pathBK);
+                    auto bVals = loadBinaryData(pathBV);
 
                     uint32_t maxOut = getMaxOutputSize(opMode, (uint32_t)A.size(), (uint32_t)B.size());
                     // Account for both keys and values buffers (2x per array)
