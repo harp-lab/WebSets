@@ -7,3 +7,4 @@ package-lock.json
 *.tar.gz
 .vscode/
 tmpclaude-*/
+public/
